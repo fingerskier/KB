@@ -5,6 +5,7 @@ KnowledgeBase driver
 * When a file changes it chunks amd vector embeds it in FAISS and stores metadata
   * Information Density = gzip-size / orig_size
 * Provides a sumple server that
-  * gives the vector search tool
+  * gives a vector search API
+  * gives fuzzy text search API
   * host a web dashboard
 in
