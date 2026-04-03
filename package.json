@@ -1,6 +1,6 @@
 {
   "name": "underrow",
-  "version": "2026.4.1",
+  "version": "2026.4.2",
   "description": "KnowledgeBase driver - file watcher with vector and fuzzy search",
   "type": "module",
   "main": "index.js",
@@ -11,7 +11,12 @@
     "start": "node index.js",
     "dev": "node --watch index.js"
   },
-  "keywords": ["knowledgebase", "vector-search", "faiss", "fuzzy-search"],
+  "keywords": [
+    "knowledgebase",
+    "vector-search",
+    "faiss",
+    "fuzzy-search"
+  ],
   "license": "MIT",
   "dependencies": {
     "chokidar": "^3.6.0",
