@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KB - Knowledge Base</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+
+    .stats {
+      margin-left: auto;
+      font-size: 0.85rem;
+      color: #8b949e;
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .stats span { color: #58a6ff; font-weight: 600; }
+
+    .container {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e1e4e8;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .search-box input:focus { border-color: #58a6ff; }
+
+    .search-box select {
+      padding: 0.75rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e1e4e8;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .search-box button {
+      padding: 0.75rem 1.5rem;
+      background: #238636;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .search-box button:hover { background: #2ea043; }
+
+    .results { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .result-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      transition: border-color 0.15s;
+    }
+
+    .result-card:hover { border-color: #58a6ff; }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-path {
+      font-size: 0.85rem;
+      color: #58a6ff;
+      font-family: monospace;
+    }
+
+    .result-meta {
+      font-size: 0.75rem;
+      color: #8b949e;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .result-text {
+      font-size: 0.9rem;
+      color: #c9d1d9;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      background: #0d1117;
+      padding: 0.75rem;
+      border-radius: 4px;
+      margin-top: 0.5rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #8b949e;
+    }
+
+    .density-bar {
+      display: inline-block;
+      width: 50px;
+      height: 8px;
+      background: #21262d;
+      border-radius: 4px;
+      overflow: hidden;
+      vertical-align: middle;
+    }
+
+    .density-bar .fill {
+      height: 100%;
+      border-radius: 4px;
+      background: #3fb950;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>KB</h1>
+    <div class="stats">
+      <div>Files: <span id="stat-files">-</span></div>
+      <div>Chunks: <span id="stat-chunks">-</span></div>
+      <div>Avg Density: <span id="stat-density">-</span></div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="search-box">
+      <input type="text" id="query" placeholder="Search your knowledge base..." autofocus />
+      <select id="mode">
+        <option value="vector">Vector</option>
+        <option value="fuzzy">Fuzzy</option>
+      </select>
+      <button onclick="doSearch()">Search</button>
+    </div>
+
+    <div class="results" id="results">
+      <div class="empty-state">
+        <p>Enter a query to search your indexed files.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const queryInput = document.getElementById('query')
+    const modeSelect = document.getElementById('mode')
+    const resultsDiv = document.getElementById('results')
+
+    queryInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch()
+    })
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats')
+        const data = await res.json()
+        document.getElementById('stat-files').textContent = data.totalFiles
+        document.getElementById('stat-chunks').textContent = data.totalChunks
+        document.getElementById('stat-density').textContent = data.avgDensity.toFixed(3)
+      } catch {}
+    }
+
+    async function doSearch() {
+      const query = queryInput.value.trim()
+      if (!query) return
+
+      const mode = modeSelect.value
+      let results
+
+      try {
+        if (mode === 'vector') {
+          const res = await fetch('/api/search/vector', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, k: 20 }),
+          })
+          const data = await res.json()
+          results = data.results
+        } else {
+          const res = await fetch(`/api/search/fuzzy?q=${encodeURIComponent(query)}`)
+          const data = await res.json()
+          results = data.results
+        }
+
+        renderResults(results)
+      } catch (err) {
+        resultsDiv.innerHTML = `<div class="empty-state">Error: ${err.message}</div>`
+      }
+    }
+
+    function renderResults(results) {
+      if (!results || results.length === 0) {
+        resultsDiv.innerHTML = '<div class="empty-state">No results found.</div>'
+        return
+      }
+
+      resultsDiv.innerHTML = results.map(r => `
+        <div class="result-card">
+          <div class="result-header">
+            <span class="result-path">${escapeHtml(r.filePath)}</span>
+            <div class="result-meta">
+              <span>chunk ${r.chunkIndex}</span>
+              <span>score: ${r.score?.toFixed(3) ?? '-'}</span>
+              <span>
+                density: ${r.density?.toFixed(3) ?? '-'}
+                <span class="density-bar">
+                  <span class="fill" style="width: ${(r.density ?? 0) * 100}%"></span>
+                </span>
+              </span>
+            </div>
+          </div>
+          <div class="result-text">${escapeHtml(r.text)}</div>
+        </div>
+      `).join('')
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    }
+
+    loadStats()
+    setInterval(loadStats, 5000)
+  </script>
+</body>
+</html>
