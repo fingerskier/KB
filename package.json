@@ -1,9 +1,12 @@
 {
-  "name": "kb",
+  "name": "knowme",
   "version": "1.0.0",
   "description": "KnowledgeBase driver - file watcher with vector and fuzzy search",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "knowme": "index.js"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js"

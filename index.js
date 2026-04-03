@@ -1,12 +1,38 @@
+#!/usr/bin/env node
+
 import { resolve } from 'path'
 import { startWatcher } from './src/watcher.js'
 import { createServer } from './src/server.js'
 import { Store } from './src/store.js'
 import { initEmbedder } from './src/embedder.js'
 
-const WATCH_DIR = process.env.KB_WATCH_DIR || process.cwd()
-const PORT = parseInt(process.env.KB_PORT || '3737', 10)
-const DATA_DIR = resolve(process.env.KB_DATA_DIR || './data')
+const args = process.argv.slice(2)
+
+function flag(name, fallback) {
+  const i = args.indexOf(name)
+  if (i === -1) return fallback
+  return args.splice(i, 2)[1] || fallback
+}
+
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`knowme - watch a directory, embed content, search via UI & API
+
+Usage: knowme [dir] [options]
+
+Arguments:
+  dir              Directory to watch (default: current directory)
+
+Options:
+  --port, -p       Server port (default: 3737, env: KB_PORT)
+  --data, -d       Data storage directory (default: ./data, env: KB_DATA_DIR)
+  -h, --help       Show this help
+`)
+  process.exit(0)
+}
+
+const PORT = parseInt(flag('--port', flag('-p', process.env.KB_PORT || '3737')), 10)
+const DATA_DIR = resolve(flag('--data', flag('-d', process.env.KB_DATA_DIR || './data')))
+const WATCH_DIR = resolve(args[0] || process.env.KB_WATCH_DIR || process.cwd())
 
 async function main() {
   console.log(`KB starting...`)
