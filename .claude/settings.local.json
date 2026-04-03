@@ -3,7 +3,8 @@
     "allow": [
       "Bash(node:*)",
       "Bash(npm link:*)",
-      "Bash(knowme --help)"
+      "Bash(knowme --help)",
+      "Bash(timeout 3 bash -c 'node index.js --port 3739 &>/dev/null & PID=$!; sleep 2; curl -s http://localhost:3737/openapi.json 2>/dev/null || curl -s http://localhost:3739/openapi.json; kill $PID 2>/dev/null')"
     ]
   }
 }

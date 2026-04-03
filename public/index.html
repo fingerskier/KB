@@ -64,16 +64,6 @@
 
     .search-box input:focus { border-color: #58a6ff; }
 
-    .search-box select {
-      padding: 0.75rem;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      color: #e1e4e8;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-
     .search-box button {
       padding: 0.75rem 1.5rem;
       background: #238636;
@@ -169,10 +159,6 @@
   <div class="container">
     <div class="search-box">
       <input type="text" id="query" placeholder="Search your knowledge base..." autofocus />
-      <select id="mode">
-        <option value="vector">Vector</option>
-        <option value="fuzzy">Fuzzy</option>
-      </select>
       <button onclick="doSearch()">Search</button>
     </div>
 
@@ -185,7 +171,6 @@
 
   <script>
     const queryInput = document.getElementById('query')
-    const modeSelect = document.getElementById('mode')
     const resultsDiv = document.getElementById('results')
 
     queryInput.addEventListener('keydown', e => {
@@ -206,37 +191,48 @@
       const query = queryInput.value.trim()
       if (!query) return
 
-      const mode = modeSelect.value
-      let results
-
       try {
-        if (mode === 'vector') {
-          const res = await fetch('/api/search/vector', {
+        const [vectorRes, fuzzyRes] = await Promise.all([
+          fetch('/api/search/vector', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query, k: 20 }),
-          })
-          const data = await res.json()
-          results = data.results
-        } else {
-          const res = await fetch(`/api/search/fuzzy?q=${encodeURIComponent(query)}`)
-          const data = await res.json()
-          results = data.results
-        }
+          }).then(r => r.json()),
+          fetch(`/api/search/fuzzy?q=${encodeURIComponent(query)}`).then(r => r.json()),
+        ])
 
-        renderResults(results)
+        renderResults(vectorRes.results, fuzzyRes.results)
       } catch (err) {
         resultsDiv.innerHTML = `<div class="empty-state">Error: ${err.message}</div>`
       }
     }
 
-    function renderResults(results) {
-      if (!results || results.length === 0) {
+    function renderResults(vectorResults, fuzzyResults) {
+      const hasVector = vectorResults && vectorResults.length > 0
+      const hasFuzzy = fuzzyResults && fuzzyResults.length > 0
+
+      if (!hasVector && !hasFuzzy) {
         resultsDiv.innerHTML = '<div class="empty-state">No results found.</div>'
         return
       }
 
-      resultsDiv.innerHTML = results.map(r => `
+      let html = ''
+
+      if (hasVector) {
+        html += '<h3 style="color:#58a6ff;margin-bottom:0.5rem">Vector Results</h3>'
+        html += vectorResults.map(renderCard).join('')
+      }
+
+      if (hasFuzzy) {
+        html += `<h3 style="color:#58a6ff;margin:${hasVector ? '1.5rem' : '0'} 0 0.5rem">Fuzzy Results</h3>`
+        html += fuzzyResults.map(renderCard).join('')
+      }
+
+      resultsDiv.innerHTML = html
+    }
+
+    function renderCard(r) {
+      return `
         <div class="result-card">
           <div class="result-header">
             <span class="result-path">${escapeHtml(r.filePath)}</span>
@@ -253,7 +249,7 @@
           </div>
           <div class="result-text">${escapeHtml(r.text)}</div>
         </div>
-      `).join('')
+      `
     }
 
     function escapeHtml(str) {

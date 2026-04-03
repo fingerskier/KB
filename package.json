@@ -1,11 +1,11 @@
 {
-  "name": "knowme",
-  "version": "1.0.0",
+  "name": "underrow",
+  "version": "2026.4.1",
   "description": "KnowledgeBase driver - file watcher with vector and fuzzy search",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "knowme": "index.js"
+    "underrow": "index.js"
   },
   "scripts": {
     "start": "node index.js",

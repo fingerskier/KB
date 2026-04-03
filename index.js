@@ -15,9 +15,9 @@ function flag(name, fallback) {
 }
 
 if (args.includes('--help') || args.includes('-h')) {
-  console.log(`knowme - watch a directory, embed content, search via UI & API
+  console.log(`underrow - watch a directory, embed content, search via UI & API
 
-Usage: knowme [dir] [options]
+Usage: underrow [dir] [options]
 
 Arguments:
   dir              Directory to watch (default: current directory)
