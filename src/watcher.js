@@ -100,7 +100,11 @@ export function startWatcher(dir, store, embedder) {
     .on('unlink', filePath => {
       const relPath = relative(process.cwd(), resolve(filePath))
       console.log(`Removed: ${relPath}`)
-      store.removeFile(relPath)
+      try {
+        store.removeFile(relPath)
+      } catch (err) {
+        console.error(`Error removing ${relPath}: ${err.message}`)
+      }
     })
 
   console.log(`Watching ${dir} for changes...`)

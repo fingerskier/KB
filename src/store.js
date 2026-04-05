@@ -10,10 +10,12 @@ export class Store {
     this.dimensions = dimensions
     this.indexPath = join(dataDir, 'faiss.index')
     this.metaPath = join(dataDir, 'metadata.json')
+    this.vecPath = join(dataDir, 'vectors.json')
 
     mkdirSync(dataDir, { recursive: true })
 
     this.metadata = [] // array of { id, filePath, chunkIndex, text, density, mtime }
+    this.vectors = []  // parallel array of raw vector data (Float32Array → Array)
     this.index = new IndexFlatIP(dimensions) // inner product (cosine sim on normalized vecs)
 
     this._load()
@@ -27,6 +29,13 @@ export class Store {
         this.metadata = []
       }
     }
+    if (existsSync(this.vecPath)) {
+      try {
+        this.vectors = JSON.parse(readFileSync(this.vecPath, 'utf8'))
+      } catch {
+        this.vectors = []
+      }
+    }
     if (existsSync(this.indexPath) && this.metadata.length > 0) {
       try {
         this.index = IndexFlatIP.read(this.indexPath)
@@ -34,10 +43,28 @@ export class Store {
         this.index = new IndexFlatIP(this.dimensions)
       }
     }
+
+    // Consistency check — if any of the three are out of sync, rebuild from vectors
+    const nt = this.index.ntotal()
+    if (nt !== this.metadata.length || nt !== this.vectors.length) {
+      if (this.vectors.length === this.metadata.length && this.vectors.length > 0) {
+        // Vectors and metadata agree — rebuild FAISS index from vectors
+        this.index = new IndexFlatIP(this.dimensions)
+        for (const vec of this.vectors) {
+          this.index.add(vec)
+        }
+      } else {
+        // Can't reconcile — reset everything; watcher will re-index
+        this.metadata = []
+        this.vectors = []
+        this.index = new IndexFlatIP(this.dimensions)
+      }
+    }
   }
 
   save() {
     writeFileSync(this.metaPath, JSON.stringify(this.metadata, null, 2))
+    writeFileSync(this.vecPath, JSON.stringify(this.vectors))
     if (this.metadata.length > 0) {
       this.index.write(this.indexPath)
     }
@@ -57,18 +84,18 @@ export class Store {
 
     if (removeIds.size === 0) return
 
-    // Rebuild index without removed entries
+    // Rebuild index without removed entries using stored vectors
     const newIndex = new IndexFlatIP(this.dimensions)
-    // We need to re-add all vectors except removed ones
-    // Unfortunately faiss-node doesn't support removal, so we reconstruct
-    for (let i = 0; i < this.metadata.length; i++) {
+    const newVectors = []
+    for (let i = 0; i < this.vectors.length; i++) {
       if (!removeIds.has(i)) {
-        const vec = this.index.reconstruct(i)
-        newIndex.add(vec)
+        newIndex.add(this.vectors[i])
+        newVectors.push(this.vectors[i])
       }
     }
 
     this.metadata = remaining
+    this.vectors = newVectors
     this.index = newIndex
     this.save()
   }
@@ -83,6 +110,7 @@ export class Store {
         density: densities[i],
         mtime: mtime.toISOString(),
       })
+      this.vectors.push(Array.from(vectors[i]))
       this.index.add(vectors[i])
     }
     this.save()
