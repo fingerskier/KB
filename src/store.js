@@ -156,4 +156,15 @@ export class Store {
   getAllMetadata() {
     return this.metadata
   }
+
+  getFileMtime(filePath) {
+    for (const m of this.metadata) {
+      if (m.filePath === filePath) return m.mtime
+    }
+    return null
+  }
+
+  listIndexedFiles() {
+    return new Set(this.metadata.map(m => m.filePath))
+  }
 }

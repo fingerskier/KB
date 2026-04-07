@@ -47,6 +47,15 @@ async function main() {
   const store = new Store(DATA_DIR, embedder.dimensions)
   store._embedder = embedder
 
+  if (process.env.KB_REINDEX === '1') {
+    console.log('KB_REINDEX=1 set — clearing store for full rebuild')
+    store.metadata = []
+    store.vectors = []
+    const faiss = (await import('faiss-node')).default
+    store.index = new faiss.IndexFlatIP(embedder.dimensions)
+    store.save()
+  }
+
   startWatcher(WATCH_DIR, store, embedder)
 
   const app = createServer(store, embedder)

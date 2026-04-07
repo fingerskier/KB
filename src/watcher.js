@@ -27,7 +27,7 @@ function isTextFile(filePath) {
   return TEXT_EXTENSIONS.has(ext) || ext === ''
 }
 
-async function processFile(filePath, store, embedder) {
+export async function processFile(filePath, store, embedder) {
   if (!isTextFile(filePath)) return
 
   let text
@@ -41,6 +41,12 @@ async function processFile(filePath, store, embedder) {
 
   const stat = statSync(filePath)
   const relPath = relative(process.cwd(), filePath)
+
+  // Skip if unchanged since last index
+  const storedMtime = store.getFileMtime(relPath)
+  if (storedMtime && storedMtime === stat.mtime.toISOString()) {
+    return
+  }
 
   console.log(`Processing: ${relPath}`)
 
@@ -104,6 +110,28 @@ export function startWatcher(dir, store, embedder) {
         store.removeFile(relPath)
       } catch (err) {
         console.error(`Error removing ${relPath}: ${err.message}`)
+      }
+    })
+    .on('ready', () => {
+      // Sweep for files that were deleted while the process was down.
+      // chokidar's getWatched() returns { dir: [basenames] }; flatten to a Set of relPaths.
+      const watched = watcher.getWatched()
+      const present = new Set()
+      for (const [d, names] of Object.entries(watched)) {
+        for (const name of names) {
+          const abs = resolve(d, name)
+          present.add(relative(process.cwd(), abs))
+        }
+      }
+      for (const indexed of store.listIndexedFiles()) {
+        if (!present.has(indexed)) {
+          console.log(`Removed (stale): ${indexed}`)
+          try {
+            store.removeFile(indexed)
+          } catch (err) {
+            console.error(`Error removing ${indexed}: ${err.message}`)
+          }
+        }
       }
     })
 
