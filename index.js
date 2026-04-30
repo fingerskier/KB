@@ -79,20 +79,20 @@ function runList() {
   const rows = list.map(e => ({
     pid: String(e.pid),
     port: String(e.port),
+    url: `http://localhost:${e.port}`,
     watch: e.watchDir || '',
-    data: e.dataDir || '',
     uptime: formatUptime(now - (e.startedAt || now)),
   }))
   const w = {
     pid: Math.max(3, ...rows.map(r => r.pid.length)),
     port: Math.max(4, ...rows.map(r => r.port.length)),
+    url: Math.max(3, ...rows.map(r => r.url.length)),
     watch: Math.max(5, ...rows.map(r => r.watch.length)),
-    data: Math.max(4, ...rows.map(r => r.data.length)),
   }
-  const line = (pid, port, watch, data, uptime) =>
-    `${pid.padEnd(w.pid)}  ${port.padEnd(w.port)}  ${watch.padEnd(w.watch)}  ${data.padEnd(w.data)}  ${uptime}`
-  console.log(line('PID', 'PORT', 'WATCH', 'DATA', 'UPTIME'))
-  for (const r of rows) console.log(line(r.pid, r.port, r.watch, r.data, r.uptime))
+  const line = (pid, port, url, watch, uptime) =>
+    `${pid.padEnd(w.pid)}  ${port.padEnd(w.port)}  ${url.padEnd(w.url)}  ${watch.padEnd(w.watch)}  ${uptime}`
+  console.log(line('PID', 'PORT', 'URL', 'WATCH', 'UPTIME'))
+  for (const r of rows) console.log(line(r.pid, r.port, r.url, r.watch, r.uptime))
 }
 
 function acquireLock(dataDir, info) {
