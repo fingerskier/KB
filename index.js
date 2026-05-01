@@ -164,7 +164,7 @@ function listenWithRetry(app, startPort, allowIncrement, maxTries = 20) {
   })
 }
 
-if (args.includes('--help') || args.includes('-h')) {
+if (args.includes('--help') || args.includes('-h') || args[0] === 'help') {
   console.log(`underrow - watch a directory, embed content, search via UI & API
 
 Usage: underrow [dir] [options]
@@ -172,6 +172,7 @@ Usage: underrow [dir] [options]
 
 Subcommands:
   list             Show running underrow instances (pid, port, watch dir)
+  help             Show this help (alias for --help)
 
 Arguments:
   dir              Directory to watch (default: current directory)

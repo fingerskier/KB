@@ -144,6 +144,68 @@
       border-radius: 4px;
       background: #3fb950;
     }
+
+    details.help {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+
+    details.help summary {
+      cursor: pointer;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: #58a6ff;
+      font-size: 0.95rem;
+      user-select: none;
+      list-style: none;
+    }
+
+    details.help summary::-webkit-details-marker { display: none; }
+
+    details.help summary::before {
+      content: '▶';
+      display: inline-block;
+      margin-right: 0.5rem;
+      font-size: 0.7rem;
+      transition: transform 0.15s;
+    }
+
+    details.help[open] summary::before { transform: rotate(90deg); }
+
+    details.help .help-body {
+      padding: 0 1rem 1rem;
+      border-top: 1px solid #30363d;
+    }
+
+    details.help pre {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #c9d1d9;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      padding-top: 0.75rem;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    details.help .help-links {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: #8b949e;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    details.help .help-links a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+
+    details.help .help-links a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -157,6 +219,19 @@
   </header>
 
   <div class="container">
+    <details class="help">
+      <summary>Help &amp; API reference</summary>
+      <div class="help-body">
+        <pre id="help-text">Loading…</pre>
+        <div class="help-links">
+          <a href="/help" target="_blank">/help (plain text)</a>
+          <a href="/openapi.json" target="_blank">/openapi.json</a>
+          <a href="/api/stats" target="_blank">/api/stats</a>
+          <a href="/api/documents" target="_blank">/api/documents</a>
+        </div>
+      </div>
+    </details>
+
     <div class="search-box">
       <input type="text" id="query" placeholder="Search your knowledge base..." autofocus />
       <button onclick="doSearch()">Search</button>
@@ -260,7 +335,18 @@
         .replace(/"/g, '&quot;')
     }
 
+    async function loadHelp() {
+      try {
+        const res = await fetch('/help')
+        const text = await res.text()
+        document.getElementById('help-text').textContent = text
+      } catch (err) {
+        document.getElementById('help-text').textContent = `Failed to load /help: ${err.message}`
+      }
+    }
+
     loadStats()
+    loadHelp()
     setInterval(loadStats, 5000)
   </script>
 </body>
