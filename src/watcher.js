@@ -1,34 +1,59 @@
 import chokidar from 'chokidar'
-import { readFileSync, statSync } from 'fs'
-import { relative, resolve } from 'path'
+import { readFileSync, statSync, openSync, readSync, closeSync } from 'fs'
+import { relative, resolve, basename } from 'path'
 import { chunkText } from './chunker.js'
 import { informationDensity } from './density.js'
+import { DEFAULT_TEXT_EXTENSIONS, DEFAULT_IGNORE } from './config.js'
 
-const TEXT_EXTENSIONS = new Set([
-  '.txt', '.md', '.js', '.ts', '.jsx', '.tsx', '.py', '.rb', '.go',
-  '.rs', '.java', '.c', '.cpp', '.h', '.hpp', '.css', '.html', '.xml',
-  '.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.sh',
-  '.bash', '.zsh', '.fish', '.sql', '.csv', '.log', '.env', '.gitignore',
-  '.dockerfile', '.makefile', '.cmake', '.gradle', '.properties',
-])
+const PROBE_BYTES = 8192
+const utf8DecoderFatal = new TextDecoder('utf-8', { fatal: true })
 
-const IGNORE_PATTERNS = [
-  '**/node_modules/**',
-  '**/data/**',
-  '**/.git/**',
-  '**/dist/**',
-  '**/build/**',
-  '**/*.lock',
-  '**/package-lock.json',
-]
-
-function isTextFile(filePath) {
-  const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase()
-  return TEXT_EXTENSIONS.has(ext) || ext === ''
+function fileExt(filePath) {
+  const name = basename(filePath).toLowerCase()
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0) return ''
+  return name.slice(dot)
 }
 
-export async function processFile(filePath, store, embedder) {
-  if (!isTextFile(filePath)) return
+export function probeIsUtf8(filePath) {
+  let fd
+  try {
+    fd = openSync(filePath, 'r')
+    const buf = Buffer.alloc(PROBE_BYTES)
+    const bytes = readSync(fd, buf, 0, PROBE_BYTES, 0)
+    if (bytes === 0) return true
+    const slice = buf.subarray(0, bytes)
+    if (slice.includes(0)) return false
+    try {
+      utf8DecoderFatal.decode(slice)
+      return true
+    } catch {
+      return false
+    }
+  } catch {
+    return false
+  } finally {
+    if (fd !== undefined) {
+      try { closeSync(fd) } catch {}
+    }
+  }
+}
+
+export function makeFilter(options = {}) {
+  const extensions = options.extensions instanceof Set
+    ? options.extensions
+    : new Set(options.extensions || DEFAULT_TEXT_EXTENSIONS)
+  const probeExtensionless = options.probeExtensionless !== false
+  return function shouldIndex(filePath) {
+    const ext = fileExt(filePath)
+    if (ext) return extensions.has(ext)
+    return probeExtensionless ? probeIsUtf8(filePath) : false
+  }
+}
+
+export async function processFile(filePath, store, embedder, options = {}) {
+  const filter = options.filter || makeFilter(options)
+  if (!filter(filePath)) return
 
   let text
   try {
@@ -42,7 +67,6 @@ export async function processFile(filePath, store, embedder) {
   const stat = statSync(filePath)
   const relPath = relative(process.cwd(), filePath)
 
-  // Skip if unchanged since last index
   const storedMtime = store.getFileMtime(relPath)
   if (storedMtime && storedMtime === stat.mtime.toISOString()) {
     return
@@ -50,7 +74,6 @@ export async function processFile(filePath, store, embedder) {
 
   console.log(`Processing: ${relPath}`)
 
-  // Remove old entries for this file
   store.removeFile(relPath)
 
   const chunks = chunkText(text)
@@ -66,9 +89,13 @@ export async function processFile(filePath, store, embedder) {
   console.log(`  Indexed ${chunks.length} chunks (avg density: ${(densities.reduce((a, b) => a + b, 0) / densities.length).toFixed(3)})`)
 }
 
-export function startWatcher(dir, store, embedder) {
+export function startWatcher(dir, store, embedder, options = {}) {
+  const filter = makeFilter(options)
+  const procOpts = { ...options, filter }
+  const ignore = options.ignore || DEFAULT_IGNORE
+
   const watcher = chokidar.watch(dir, {
-    ignored: IGNORE_PATTERNS,
+    ignored: ignore,
     persistent: true,
     ignoreInitial: false,
   })
@@ -83,7 +110,7 @@ export function startWatcher(dir, store, embedder) {
     while (queue.length > 0) {
       const { filePath } = queue.shift()
       try {
-        await processFile(filePath, store, embedder)
+        await processFile(filePath, store, embedder, procOpts)
       } catch (err) {
         console.error(`Error processing ${filePath}:`, err.message)
       }
@@ -93,7 +120,6 @@ export function startWatcher(dir, store, embedder) {
   }
 
   function enqueue(filePath) {
-    // Deduplicate
     if (!queue.some(q => q.filePath === filePath)) {
       queue.push({ filePath: resolve(filePath) })
     }
@@ -113,8 +139,6 @@ export function startWatcher(dir, store, embedder) {
       }
     })
     .on('ready', () => {
-      // Sweep for files that were deleted while the process was down.
-      // chokidar's getWatched() returns { dir: [basenames] }; flatten to a Set of relPaths.
       const watched = watcher.getWatched()
       const present = new Set()
       for (const [d, names] of Object.entries(watched)) {

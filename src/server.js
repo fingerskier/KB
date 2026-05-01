@@ -44,6 +44,10 @@ Environment / CLI
   underrow [dir]           Directory to watch (default: cwd)
   --port, -p <number>      Server port (default: 3737, env: KB_PORT)
   --data, -d <path>        Data storage dir (default: ./data, env: KB_DATA_DIR)
+  --ext <.a,.b>            Opt-in extensions (extends defaults; repeatable)
+  --no-probe               Disable UTF-8 probe for extensionless files
+
+  .kbrc.json in watched dir may set: extensions, ignore, probeExtensionless
 `)
   })
 
@@ -95,7 +99,7 @@ Environment / CLI
       openapi: '3.0.3',
       info: {
         title: 'Underrow',
-        version: '2026.4.1',
+        version: '2026.5.1',
         description: 'KnowledgeBase driver - file watcher with vector and fuzzy search',
       },
       paths: {

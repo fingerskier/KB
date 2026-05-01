@@ -7,6 +7,7 @@ import { startWatcher } from './src/watcher.js'
 import { createServer } from './src/server.js'
 import { Store } from './src/store.js'
 import { initEmbedder } from './src/embedder.js'
+import { buildIndexerOptions, parseExtList } from './src/config.js'
 
 const args = process.argv.slice(2)
 
@@ -17,6 +18,24 @@ function flag(name, fallback) {
   const i = args.indexOf(name)
   if (i === -1) return fallback
   return args.splice(i, 2)[1] || fallback
+}
+
+function flagAll(name) {
+  const out = []
+  while (true) {
+    const i = args.indexOf(name)
+    if (i === -1) break
+    const val = args.splice(i, 2)[1]
+    if (val) out.push(val)
+  }
+  return out
+}
+
+function boolFlag(name) {
+  const i = args.indexOf(name)
+  if (i === -1) return false
+  args.splice(i, 1)
+  return true
 }
 
 function isPidAlive(pid) {
@@ -162,7 +181,22 @@ Options:
                    set and the port is busy, underrow auto-increments.
   --data, -d       Data storage directory (default: ./data, env: KB_DATA_DIR).
                    Two instances may not share a data directory.
+  --ext <list>     Comma-separated extensions to opt into indexing
+                   (e.g. --ext .pdf,.docx). May be passed multiple times.
+                   Extends the built-in text-extension allowlist.
+  --no-probe       Disable UTF-8 probing of extensionless files. By default
+                   files without an extension are sniffed (8KB) and indexed
+                   only if they look like UTF-8 text.
   -h, --help       Show this help
+
+Config file (optional):
+  Place .kbrc.json in the watched directory:
+    {
+      "extensions": [".pdf", ".docx"],
+      "ignore": ["**/tmp/**"],
+      "probeExtensionless": true
+    }
+  CLI flags override config; config extends defaults.
 `)
   process.exit(0)
 }
@@ -175,7 +209,15 @@ if (args[0] === 'list') {
 const portExplicit = !!process.env.KB_PORT || args.includes('--port') || args.includes('-p')
 const PORT = parseInt(flag('--port', flag('-p', process.env.KB_PORT || '3737')), 10)
 const DATA_DIR = resolve(flag('--data', flag('-d', process.env.KB_DATA_DIR || './data')))
+const CLI_EXT = flagAll('--ext').flatMap(parseExtList)
+const NO_PROBE = boolFlag('--no-probe')
 const WATCH_DIR = resolve(args[0] || process.env.KB_WATCH_DIR || process.cwd())
+
+const indexerOptions = buildIndexerOptions({
+  watchDir: WATCH_DIR,
+  cliExt: CLI_EXT,
+  probeOverride: NO_PROBE ? false : undefined,
+})
 
 let lockPath = null
 let cleaned = false
@@ -202,6 +244,8 @@ async function main() {
   console.log(`  Watch dir : ${WATCH_DIR}`)
   console.log(`  Data dir  : ${DATA_DIR}`)
   console.log(`  Port      : ${PORT}${portExplicit ? '' : ' (auto-increment if busy)'}`)
+  console.log(`  Extensions: ${indexerOptions.extensions.size} (probe ext-less: ${indexerOptions.probeExtensionless ? 'on' : 'off'})`)
+  if (indexerOptions.configPath) console.log(`  Config    : ${indexerOptions.configPath}`)
 
   console.log('Loading embedding model...')
   const embedder = await initEmbedder()
@@ -219,7 +263,7 @@ async function main() {
     store.save()
   }
 
-  startWatcher(WATCH_DIR, store, embedder)
+  startWatcher(WATCH_DIR, store, embedder, indexerOptions)
 
   const app = createServer(store, embedder)
   const { port: actualPort } = await listenWithRetry(app, PORT, !portExplicit)
