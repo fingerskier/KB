@@ -53,6 +53,7 @@ export function makeFilter(options = {}) {
 
 export async function processFile(filePath, store, embedder, options = {}) {
   const filter = options.filter || makeFilter(options)
+  const activityLog = options.activityLog
   if (!filter(filePath)) return
 
   let text
@@ -73,6 +74,7 @@ export async function processFile(filePath, store, embedder, options = {}) {
   }
 
   console.log(`Processing: ${relPath}`)
+  activityLog?.lifecycle('file_processing_started', { filePath: relPath })
 
   store.removeFile(relPath)
 
@@ -86,7 +88,9 @@ export async function processFile(filePath, store, embedder, options = {}) {
   }
 
   store.addChunks(relPath, chunks, vectors, densities, stat.mtime)
-  console.log(`  Indexed ${chunks.length} chunks (avg density: ${(densities.reduce((a, b) => a + b, 0) / densities.length).toFixed(3)})`)
+  const avgDensity = (densities.reduce((a, b) => a + b, 0) / densities.length).toFixed(3)
+  console.log(`  Indexed ${chunks.length} chunks (avg density: ${avgDensity})`)
+  activityLog?.lifecycle('file_indexed', { filePath: relPath, chunks: chunks.length, avgDensity: Number(avgDensity) })
 }
 
 export function startWatcher(dir, store, embedder, options = {}) {
@@ -102,6 +106,7 @@ export function startWatcher(dir, store, embedder, options = {}) {
 
   const queue = []
   let processing = false
+  const activityLog = options.activityLog
 
   async function processQueue() {
     if (processing) return
@@ -113,6 +118,7 @@ export function startWatcher(dir, store, embedder, options = {}) {
         await processFile(filePath, store, embedder, procOpts)
       } catch (err) {
         console.error(`Error processing ${filePath}:`, err.message)
+        activityLog?.errata('file_processing_failed', err, { filePath })
       }
     }
 
@@ -132,10 +138,12 @@ export function startWatcher(dir, store, embedder, options = {}) {
     .on('unlink', filePath => {
       const relPath = relative(process.cwd(), resolve(filePath))
       console.log(`Removed: ${relPath}`)
+      activityLog?.lifecycle('file_removed', { filePath: relPath })
       try {
         store.removeFile(relPath)
       } catch (err) {
         console.error(`Error removing ${relPath}: ${err.message}`)
+        activityLog?.errata('file_remove_failed', err, { filePath: relPath })
       }
     })
     .on('ready', () => {
@@ -150,15 +158,18 @@ export function startWatcher(dir, store, embedder, options = {}) {
       for (const indexed of store.listIndexedFiles()) {
         if (!present.has(indexed)) {
           console.log(`Removed (stale): ${indexed}`)
+          activityLog?.lifecycle('file_removed_stale', { filePath: indexed })
           try {
             store.removeFile(indexed)
           } catch (err) {
             console.error(`Error removing ${indexed}: ${err.message}`)
+            activityLog?.errata('stale_file_remove_failed', err, { filePath: indexed })
           }
         }
       }
     })
 
   console.log(`Watching ${dir} for changes...`)
+  activityLog?.lifecycle('watcher_started', { watchDir: dir })
   return watcher
 }
