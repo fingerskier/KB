@@ -8,6 +8,7 @@ import { createServer } from './src/server.js'
 import { Store } from './src/store.js'
 import { initEmbedder } from './src/embedder.js'
 import { buildIndexerOptions, parseExtList } from './src/config.js'
+import { createActivityLogger } from './src/activity-log.js'
 
 const args = process.argv.slice(2)
 
@@ -221,12 +222,14 @@ const indexerOptions = buildIndexerOptions({
 })
 
 let lockPath = null
+let activityLog = null
 let cleaned = false
 function cleanup() {
   if (cleaned) return
   cleaned = true
   if (lockPath) releaseLock(lockPath)
   deregisterInstance(process.pid)
+  activityLog?.lifecycle('process_exit')
 }
 
 process.on('exit', cleanup)
@@ -234,6 +237,9 @@ process.on('SIGINT', () => { cleanup(); process.exit(0) })
 process.on('SIGTERM', () => { cleanup(); process.exit(0) })
 
 async function main() {
+  activityLog = createActivityLogger({ watchDir: WATCH_DIR, dataDir: DATA_DIR })
+  activityLog.lifecycle('process_start')
+
   lockPath = acquireLock(DATA_DIR, {
     pid: process.pid,
     port: PORT,
@@ -246,6 +252,14 @@ async function main() {
   console.log(`  Data dir  : ${DATA_DIR}`)
   console.log(`  Port      : ${PORT}${portExplicit ? '' : ' (auto-increment if busy)'}`)
   console.log(`  Extensions: ${indexerOptions.extensions.size} (probe ext-less: ${indexerOptions.probeExtensionless ? 'on' : 'off'})`)
+  console.log(`  Activity log: ${activityLog.filePath}`)
+  activityLog.lifecycle('startup_config', {
+    port: PORT,
+    portExplicit,
+    extensionCount: indexerOptions.extensions.size,
+    probeExtensionless: indexerOptions.probeExtensionless,
+    configPath: indexerOptions.configPath || null,
+  })
   if (indexerOptions.configPath) console.log(`  Config    : ${indexerOptions.configPath}`)
 
   console.log('Loading embedding model...')
@@ -264,7 +278,7 @@ async function main() {
     store.save()
   }
 
-  startWatcher(WATCH_DIR, store, embedder, indexerOptions)
+  startWatcher(WATCH_DIR, store, embedder, { ...indexerOptions, activityLog })
 
   const app = createServer(store, embedder)
   const { port: actualPort } = await listenWithRetry(app, PORT, !portExplicit)
@@ -286,10 +300,12 @@ async function main() {
   })
 
   console.log(`KB server listening on http://localhost:${actualPort}`)
+  activityLog.lifecycle('server_listening', { port: actualPort, url: `http://localhost:${actualPort}` })
 }
 
 main().catch(err => {
   console.error('Fatal error:', err)
+  activityLog?.errata('fatal_error', err)
   cleanup()
   process.exit(1)
 })
