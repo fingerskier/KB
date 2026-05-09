@@ -1,6 +1,6 @@
 {
   "name": "underrow",
-  "version": "2026.5.1",
+  "version": "2026.5.2",
   "description": "KnowledgeBase driver - file watcher with vector and fuzzy search",
   "type": "module",
   "main": "index.js",

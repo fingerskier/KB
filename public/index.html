@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>KB - Knowledge Base</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -210,7 +211,7 @@
 </head>
 <body>
   <header>
-    <h1>KB</h1>
+    <h1 id="watch-name" title="Watched directory">KB</h1>
     <div class="stats">
       <div>Files: <span id="stat-files">-</span></div>
       <div>Chunks: <span id="stat-chunks">-</span></div>
@@ -259,6 +260,14 @@
         document.getElementById('stat-files').textContent = data.totalFiles
         document.getElementById('stat-chunks').textContent = data.totalChunks
         document.getElementById('stat-density').textContent = data.avgDensity.toFixed(3)
+        if (data.watchName) {
+          const h1 = document.getElementById('watch-name')
+          h1.textContent = data.watchName
+          if (data.watchDir) {
+            h1.title = data.watchDir
+            document.title = `${data.watchName} - KB`
+          }
+        }
       } catch {}
     }
 

@@ -1,14 +1,19 @@
 import express from 'express'
-import { resolve } from 'path'
+import { resolve, basename } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-export function createServer(store, embedder) {
+export function createServer(store, embedder, options = {}) {
   const app = express()
+  const watchDir = options.watchDir || process.cwd()
 
   app.use(express.json())
+  // Suppress 404 noise from browser favicon probes (the dashboard
+  // <link rel="icon" href="data:,"> covers loaded pages, but bare hits
+  // to non-dashboard routes still ask for /favicon.ico).
+  app.get('/favicon.ico', (req, res) => res.status(204).end())
   app.use(express.static(resolve(__dirname, '..', 'public')))
 
   // Help
@@ -85,7 +90,7 @@ Environment / CLI
 
   // Stats
   app.get('/api/stats', (req, res) => {
-    res.json(store.getStats())
+    res.json({ ...store.getStats(), watchDir, watchName: basename(watchDir) })
   })
 
   // All metadata
@@ -99,7 +104,7 @@ Environment / CLI
       openapi: '3.0.3',
       info: {
         title: 'Underrow',
-        version: '2026.5.1',
+        version: '2026.5.2',
         description: 'KnowledgeBase driver - file watcher with vector and fuzzy search',
       },
       paths: {

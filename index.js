@@ -280,7 +280,7 @@ async function main() {
 
   startWatcher(WATCH_DIR, store, embedder, { ...indexerOptions, activityLog })
 
-  const app = createServer(store, embedder)
+  const app = createServer(store, embedder, { watchDir: WATCH_DIR })
   const { port: actualPort } = await listenWithRetry(app, PORT, !portExplicit)
 
   const startedAt = Date.now()
